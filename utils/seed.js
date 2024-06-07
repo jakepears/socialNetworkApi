@@ -1,56 +1,54 @@
+/** @format */
+
 const connection = require('../config/connection');
-const { Course, Student } = require('../models');
-const { getRandomName, getRandomAssignments } = require('./data');
+const { User, Thought } = require('../models');
+const { getRandomName, getRandomThoughts, users, thoughts } = require('./data');
 
 connection.on('error', (err) => err);
 
 connection.once('open', async () => {
-  console.log('connected');
-    // Delete the collections if they exist
-    let courseCheck = await connection.db.listCollections({ name: 'courses' }).toArray();
-    if (courseCheck.length) {
-      await connection.dropCollection('courses');
-    }
+	console.log('connected');
 
-    let studentsCheck = await connection.db.listCollections({ name: 'students' }).toArray();
-    if (studentsCheck.length) {
-      await connection.dropCollection('students');
-    }
+	// Drop existing users
+	await User.deleteMany({});
 
+	// Drop existing thoughts
+	await Thought.deleteMany({});
 
-  // Create empty array to hold the students
-  const students = [];
+	// Create empty array to hold the users
+	const users = [];
 
-  // Loop 20 times -- add students to the students array
-  for (let i = 0; i < 20; i++) {
-    // Get some random assignment objects using a helper function that we imported from ./data
-    const assignments = getRandomAssignments(20);
+	// Loop 15 times -- add users to the users array
+	for (let i = 0; i < 15; i++) {
+		const fullName = getRandomName();
+		const first = fullName.split(' ')[0];
+		const last = fullName.split(' ')[1];
+		const username = `${first}${last}${Math.floor(
+			Math.random() * (99 - 18 + 1) + 18
+		)}`;
+		const email = `${username}@example.com`;
 
-    const fullName = getRandomName();
-    const first = fullName.split(' ')[0];
-    const last = fullName.split(' ')[1];
-    const github = `${first}${Math.floor(Math.random() * (99 - 18 + 1) + 18)}`;
+		users.push({
+			username,
+			email,
+		});
+	}
 
-    students.push({
-      first,
-      last,
-      github,
-      assignments,
-    });
-  }
+	// Add users to the collection and await the results
+	const createdUsers = await User.collection.insertMany(users);
 
-  // Add students to the collection and await the results
-  const studentData = await Student.create(students);
+	// Add thoughts to the collection and await the results
+	for (let i = 0; i < 100; i++) {
+		const thought = getRandomThoughts(1)[0];
+		thought.userId =
+			createdUsers.ops[Math.floor(Math.random() * createdUsers.ops.length)]._id;
+		thoughts.push(thought);
+	}
+	await Thought.collection.insertMany(thoughts);
 
-  // Add courses to the collection and await the results
-  await Course.create({
-    courseName: 'UCLA',
-    inPerson: false,
-    students: [...studentData.map(({_id}) => _id)],
-  });
-
-  // Log out the seed data to indicate what should appear in the database
-  console.table(students);
-  console.info('Seeding complete! 🌱');
-  process.exit(0);
+	// Log out the seed data to indicate what should appear in the database
+	console.table(users);
+	console.table(thoughts);
+	console.info('Seeding complete! 🌱');
+	process.exit(0);
 });
